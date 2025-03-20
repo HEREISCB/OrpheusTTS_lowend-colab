@@ -22,7 +22,7 @@ pip install --upgrade pip
 
 # Install other required packages
 echo "Installing other dependencies..."
-pip install orpheus-speech gradio vllm torch
+pip install orpheus-speech gradio vllm torch huggingface_hub
 
 # Create launch script
 echo "Creating launch script..."
