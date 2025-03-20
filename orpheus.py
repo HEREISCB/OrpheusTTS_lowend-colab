@@ -5,6 +5,8 @@ import time
 import os
 import logging
 import re
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,7 +16,10 @@ logger = logging.getLogger(__name__)
 model = None
 MODEL_SAMPLE_RATE = 24000
 
-def load_model(model_name="canopylabs/orpheus-tts-0.1-finetune-prod"):
+model_path = None # Set this to your local model path if needed
+model_name = model_path if model_path else "canopylabs/orpheus-tts-0.1-finetune-prod"
+
+def load_model(model_name=model_name):
     """Load the Orpheus TTS model."""
     global model
     try:
@@ -68,13 +73,25 @@ def generate_speech(prompt, voice, temperature, top_p, repetition_penalty, max_t
 
 def chunk_text(text, max_chunk_size=300):
     """Split text into smaller chunks at sentence boundaries."""
-    # Remove newlines as they can cause issues with voice synthesis
-    text = text.replace("\n", " ")
     # Replace multiple spaces with a single space
     text = re.sub(r"\s+", " ", text)
-    sentences = [s.strip() for s in text.split('.') if s.strip()]
-    sentences = [s + '.' for s in sentences]
 
+    # Split on sentence delimiters while preserving the delimiter
+    delimiter_pattern = r'(?<=[.!?])\s+'
+    segments = re.split(delimiter_pattern, text)
+
+    # Process segments to ensure each has appropriate ending punctuation
+    sentences = []
+    for segment in segments:
+        segment = segment.strip()
+        if not segment:
+            continue
+
+        # Check if segment already ends with a delimiter
+        if not segment[-1] in ['.', '!', '?']:
+            segment += '.'
+
+        sentences.append(segment)
     chunks = []
     current_chunk = ""
 
@@ -93,74 +110,102 @@ def chunk_text(text, max_chunk_size=300):
     logger.info(f"Text chunked into {len(chunks)} segments")
     return chunks
 
-def generate_long_form_speech(long_text, voice, temperature, top_p, repetition_penalty, batch_size=4, max_tokens=2048, progress=gr.Progress()):
-    """Generate speech for long-form text by chunking and processing in batches."""
-    if model is None:
-        load_model()
+async def process_chunk(chunk, voice, temperature, top_p, repetition_penalty, max_tokens, temp_dir, current_idx, total_chunks):
+    """Process a single chunk asynchronously."""
+    # Run the model inference in a separate thread since it's blocking
+    loop = asyncio.get_event_loop()
 
+    def generate_for_chunk():
+        return model.generate_speech(
+            prompt=chunk,
+            voice=voice,
+            temperature=temperature,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            max_tokens=max_tokens
+        )
+
+    # Execute the model inference (this runs in a thread)
+    syn_tokens = await loop.run_in_executor(None, generate_for_chunk)
+
+    # Create a filename for this chunk
+    chunk_filename = os.path.join(temp_dir, f"chunk_{current_idx}.wav")
+
+    # Write the audio to a WAV file
+    with wave.open(chunk_filename, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(MODEL_SAMPLE_RATE)
+
+        chunk_frames = 0
+        for audio_chunk in syn_tokens:
+            frame_count = len(audio_chunk) // (wf.getsampwidth() * wf.getnchannels())
+            chunk_frames += frame_count
+            wf.writeframes(audio_chunk)
+
+        chunk_duration = chunk_frames / wf.getframerate()
+
+    return chunk_filename, chunk_duration
+
+async def generate_long_form_speech_async(long_text, voice, temperature, top_p, repetition_penalty,
+                                         batch_size=4, max_tokens=4096, progress=None):
+    """Async version of generate_long_form_speech."""
     start_time = time.monotonic()
-    progress(0, desc="Preparing text chunks")
+    if progress is not None:
+        progress(0, desc="Preparing text chunks")
 
     # Chunk the text
     chunks = chunk_text(long_text)
-    progress(0.1, desc=f"Text split into {len(chunks)} chunks")
+    if progress is not None:
+        progress(0.1, desc=f"Text split into {len(chunks)} chunks")
 
     # Create a directory for batch files
     temp_dir = f"longform_{int(time.time())}"
     os.makedirs(temp_dir, exist_ok=True)
     logger.info(f"Created temp directory: {temp_dir}")
 
-    # Process chunks in batches
+    # Use a semaphore to limit concurrent processing to batch_size
+    semaphore = asyncio.Semaphore(batch_size)
     total_chunks = len(chunks)
     all_audio_files = []
     total_duration = 0
+    processed_chunks = 0
 
-    for batch_idx in range(0, total_chunks, batch_size):
-        batch_chunks = chunks[batch_idx:batch_idx + batch_size]
+    async def process_chunk_with_semaphore(chunk, idx):
+        nonlocal processed_chunks
+        async with semaphore:
+            try:
+                filename, duration = await process_chunk(
+                    chunk, voice, temperature, top_p, repetition_penalty,
+                    max_tokens, temp_dir, idx, total_chunks
+                )
+                processed_chunks += 1
+                if progress is not None:
+                    progress(processed_chunks / total_chunks,
+                        desc=f"Processed chunk {processed_chunks}/{total_chunks}")
+                return filename, duration
+            except Exception as e:
+                logger.error(f"Error processing chunk {idx}: {str(e)}")
+                raise  # Re-raise to be caught by gather
 
-        for idx, chunk in enumerate(batch_chunks):
-            current_idx = batch_idx + idx
-            progress((current_idx / total_chunks),
-                    desc=f"Processing chunk {current_idx + 1}/{total_chunks}")
+    # Create tasks for ALL chunks and process them concurrently with semaphore limiting parallelism
+    tasks = [process_chunk_with_semaphore(chunk, idx) for idx, chunk in enumerate(chunks)]
+    results = await asyncio.gather(*tasks)
 
-            # Generate speech for this chunk
-            syn_tokens = model.generate_speech(
-                prompt=chunk,
-                voice=voice,
-                temperature=temperature,
-                top_p=top_p,
-                repetition_penalty=repetition_penalty,
-                max_tokens=max_tokens
-            )
-
-            # Create a filename for this chunk
-            chunk_filename = os.path.join(temp_dir, f"chunk_{current_idx}.wav")
-
-            # Write the audio to a WAV file
-            with wave.open(chunk_filename, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(MODEL_SAMPLE_RATE)
-
-                chunk_frames = 0
-                for audio_chunk in syn_tokens:
-                    frame_count = len(audio_chunk) // (wf.getsampwidth() * wf.getnchannels())
-                    chunk_frames += frame_count
-                    wf.writeframes(audio_chunk)
-
-                chunk_duration = chunk_frames / wf.getframerate()
-                total_duration += chunk_duration
-
-            all_audio_files.append(chunk_filename)
-
+    # Process results
+    for filename, duration in results:
+        all_audio_files.append(filename)
+        total_duration += duration
     # Combine all audio files
-    progress(0.9, desc="Combining audio files")
+    if progress is not None:
+        progress(0.9, desc="Combining audio files")
+
     combined_filename = f"longform_output_{int(time.time())}.wav"
     logger.info(f"Combining {len(all_audio_files)} audio chunks into {combined_filename}")
 
     # Use a simple concatenation approach
     data = []
-    for file in all_audio_files:
+    for file in sorted(all_audio_files, key=lambda f: int(os.path.basename(f).split('_')[1].split('.')[0])):
         with wave.open(file, 'rb') as w:
             data.append([w.getparams(), w.readframes(w.getnframes())])
 
@@ -186,9 +231,30 @@ def generate_long_form_speech(long_text, voice, temperature, top_p, repetition_p
     processing_time = time.monotonic() - start_time
     result_message = f"Generated {total_duration:.2f} seconds of audio from {total_chunks} chunks in {processing_time:.2f} seconds"
     logger.info(result_message)
+    
+    if progress is not None:
+        progress(1.0, desc="Complete")
 
-    progress(1.0, desc="Complete")
     return combined_filename, result_message
+
+def generate_long_form_speech(long_text, voice, temperature, top_p, repetition_penalty, batch_size=4, max_tokens=4096, progress=gr.Progress()):
+    """Generate speech for long-form text by chunking and processing in parallel batches."""
+    if model is None:
+        load_model()
+
+    # Use asyncio to run the async function
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        print("Running long form speech generation")
+        return loop.run_until_complete(
+            generate_long_form_speech_async(
+                long_text, voice, temperature, top_p,
+                repetition_penalty, batch_size, max_tokens, progress
+            )
+        )
+    finally:
+        loop.close()
 
 def cleanup_files():
     """Clean up generated audio files."""
@@ -224,9 +290,9 @@ def create_ui():
 
         gr.Markdown("""<div align='center'>Generate realistic speech from text using the OrpheusTTS model.
 **Available voices:** tara, jess, leo, leah, dan, mia, zac, zoe (in order of conversational realism)
-    
+
 **Available emotive tags:** `<laugh>`, `<chuckle>`, `<sigh>`, `<cough>`, `<sniffle>`, `<groan>`, `<yawn>`, `<gasp>`
-    
+
 **Note:** Increasing repetition_penalty and temperature makes the model speak faster. Increasing Max Tokens extends the maximum duration of genrated audio.
 </div>
         """)
@@ -289,8 +355,7 @@ def create_ui():
                     label="Max Tokens"
                 )
 
-                        submit_btn = gr.Button("Generate Speech")
-
+                        submit_btn = gr.Button("Generate Speech", variant="primary")
                         gr.Examples(
                             examples=[
                                 "Man, the way social media has, um, completely changed how we interact is just wild, right?",
@@ -334,7 +399,7 @@ def create_ui():
                         with gr.Row():
                             lf_max_tokens = gr.Slider(
                                 label="Max Tokens",
-                                value=2048,
+                                value=4096,
                                 minimum=128,
                                 maximum=16384,
                                 step=128
@@ -351,7 +416,7 @@ def create_ui():
                             lf_top_p = gr.Slider(
                                 minimum=0.1,
                                 maximum=1.0,
-                                value=0.9,
+                                value=0.8,
                                 step=0.05,
                                 label="Top P"
                             )
@@ -372,16 +437,27 @@ def create_ui():
                                 label="Batch Size (chunks processed in parallel)"
                             )
 
-                        lf_submit_btn = gr.Button("Generate Long Form Speech")
+                        lf_submit_btn = gr.Button("Generate Long Form Speech", variant="primary")
 
-                        gr.Markdown("""
-                        **How Long Form Processing Works**:
-                        - Text is automatically split into chunks at sentence boundaries
-                        - Chunks are processed in batches based on the batch size
-                        - Higher batch sizes may be faster but require more memory
-                        - All chunks are combined into a single audio file
-                        """)
+                        gr.Examples(
+                            examples=[
+                                """How Long Form Processing Works:
+Text is automatically split into chunks at sentence boundaries.
+Chunks are processed in batches based on the batch size.
+Higher batch sizes may be faster but require more memory.
+Finally, all chunks are combined into a single audio file.
+""",
+                                """I just got back from my vacation <sigh> and I'm already feeling stressed about work.
+Did you hear what happened at the party last night? <laugh> It was absolutely ridiculous!
+I've been working on this project for hours <yawn> and I still have so much to do.
+The concert was amazing! You should have seen the light show!
+"""
+                            ],
+                            inputs=long_form_prompt,
+                            label="Example Prompts"
+                        )
 
+                        
                     with gr.Column(scale=1):
                         lf_audio_output = gr.Audio(label="Generated Long Form Speech")
                         lf_result_text = gr.Textbox(label="Generation Stats", interactive=False)
