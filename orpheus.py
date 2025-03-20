@@ -4,9 +4,16 @@ import wave
 import time
 import os
 
-def generate_speech(prompt, voice, temperature, top_p, repetition_penalty):
+model = None
+
+def load_model(model_name="canopylabs/orpheus-tts-0.1-finetune-prod"):
+    global model
     # Initialize the Orpheus TTS model according to documentation
-    model = OrpheusModel(model_name="canopylabs/orpheus-tts-0.1-finetune-prod")
+    model = OrpheusModel(model_name=model_name)
+
+def generate_speech(prompt, voice, temperature, top_p, repetition_penalty):
+    if model is None:
+        load_model()
     
     # Start timing
     start_time = time.monotonic()
