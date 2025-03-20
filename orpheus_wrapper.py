@@ -7,7 +7,7 @@ import sys
 import logging
 
 # Set environment variables to control vLLM
-os.environ["VLLM_MAX_MODEL_LEN"] = "10000000"
+os.environ["VLLM_MAX_MODEL_LEN"] = "100000"
 os.environ["VLLM_GPU_MEMORY_UTILIZATION"] = "0.9"
 os.environ["VLLM_DISABLE_LOGGING"] = "1"
 
@@ -23,7 +23,7 @@ try:
     # Define a patched version that doesn't use disable_log_requests
     def patched_from_engine_args(engine_args, **kwargs):
         # Override the max_model_len in engine_args
-        engine_args.max_model_len = 10000000
+        engine_args.max_model_len = 100000
         engine_args.gpu_memory_utilization = 0.9
         
         print(f"Patched from_engine_args called with max_model_len={engine_args.max_model_len}")
