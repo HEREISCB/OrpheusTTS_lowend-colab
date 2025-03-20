@@ -2,9 +2,25 @@
 
 This is a fork of the [Orpheus TTS](https://github.com/canopyai/Orpheus-TTS) project, adding a Gradio WebUI that runs smoothly on WSL and CUDA.
 
-![image](https://github.com/user-attachments/assets/4d4a852b-54b3-4521-aa03-faf5517ec8a6)
+![image](https://github.com/user-attachments/assets/4b738f1d-23ed-477b-ac84-db0d5b04c76c)
+
 
 https://github.com/user-attachments/assets/79eecf06-8059-4756-86a4-02b2c17e6065
+
+## ✅ Latest Updates (20/03/2025)
+
+### Long-Form Text Processing
+- **Tabbed Interface**: The UI now features a dedicated "Long Form Content" tab for processing larger text inputs
+- **Smart Text Chunking**: Automatically splits long text into smaller chunks at sentence boundaries
+- **Parallel Processing**: Processes multiple chunks simultaneously for faster generation
+- **Seamless Audio Stitching**: Combines multiple audio segments into one cohesive output file
+- **Progress Tracking**: Real-time progress indicators during the generation process
+
+### Technical Improvements
+- **Enhanced Logging**: Better error handling and diagnostic information
+- **Memory Optimization**: Improved cleanup of temporary files
+- **Expanded Parameter Ranges**: Maximum tokens extended to 16384 for longer audio generation
+- **Batch Size Control**: Adjust the number of chunks processed in parallel to balance speed and resource usage
 
 ## Features
 
@@ -61,12 +77,28 @@ Add emotion to your speech with tags:
 - `<yawn>`
 - `<gasp>`
 
+## Long Form Text Processing
+
+The new Long Form feature lets you generate speech for larger text inputs:
+
+1. **Text Chunking**: Text is automatically split into manageable chunks at sentence boundaries
+2. **Parallel Processing**: Process multiple chunks simultaneously based on the batch size setting
+3. **Parameter Optimization**: The Long Form tab offers optimized default settings for extended content
+4. **Simple Assembly**: All audio chunks are automatically combined into a single cohesive output file
+
+This is ideal for:
+- Articles and blog posts
+- Scripts and dialogues
+- Books and stories
+- Any text content that exceeds a few paragraphs
+
 ## Troubleshooting
 
 If you encounter "KV cache" errors, the setup script should address these automatically. If problems persist, try:
 - Reducing `max_model_len` in the `orpheus_wrapper.py` file
 - Ensuring your GPU has enough VRAM (recommended 12GB+)
 - Setting `gpu_memory_utilization` to a lower value (0.7-0.8)
+- For Long Form processing, try reducing the batch size to limit memory usage
 
 ---
 
