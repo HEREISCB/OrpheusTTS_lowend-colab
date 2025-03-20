@@ -64,13 +64,13 @@ Add emotion to your speech with tags:
 ## Troubleshooting
 
 If you encounter "KV cache" errors, the setup script should address these automatically. If problems persist, try:
-- Reducing `max_model_len` in the `simple_orpheus.py` file
+- Reducing `max_model_len` in the `orpheus_wrapper.py` file
 - Ensuring your GPU has enough VRAM (recommended 12GB+)
 - Setting `gpu_memory_utilization` to a lower value (0.7-0.8)
 
 ---
 
-# Original Orpheus TTS Documentation
+# Official Orpheus TTS Documentation
 
 ## Overview
 Orpheus TTS is an open-source text-to-speech system built on the Llama-3b backbone. Orpheus demonstrates the emergent capabilities of using LLMs for speech synthesis. We offer comparisons of the models below to leading closed models like Eleven Labs and PlayHT in our blog post.
