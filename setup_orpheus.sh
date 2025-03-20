@@ -20,13 +20,9 @@ source venv/bin/activate
 echo "Installing required packages..."
 pip install --upgrade pip
 
-# Install PyTorch 2.6.0 with CUDA support
-echo "Installing PyTorch 2.6.0 with CUDA support..."
-pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu121
-
 # Install other required packages
 echo "Installing other dependencies..."
-pip install orpheus-speech gradio vllm
+pip install orpheus-speech gradio vllm torch
 
 # Create launch script
 echo "Creating launch script..."
