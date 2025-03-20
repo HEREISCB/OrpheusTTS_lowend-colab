@@ -4,6 +4,7 @@ This is a fork of the [Orpheus TTS](https://github.com/canopyai/Orpheus-TTS) pro
 
 ![image](https://github.com/user-attachments/assets/4d4a852b-54b3-4521-aa03-faf5517ec8a6)
 
+https://github.com/user-attachments/assets/79eecf06-8059-4756-86a4-02b2c17e6065
 
 ## Features
 
