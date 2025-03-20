@@ -49,4 +49,5 @@ import orpheus
 
 # Actually run the Gradio app
 if __name__ == "__main__":
-    orpheus.demo.launch(share=False) 
+    demo = orpheus.create_ui()
+    demo.launch(share=False)
