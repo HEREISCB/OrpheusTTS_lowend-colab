@@ -4,6 +4,7 @@ import wave
 import time
 import os
 
+
 model = None
 
 def load_model(model_name="canopylabs/orpheus-tts-0.1-finetune-prod"):
@@ -11,7 +12,7 @@ def load_model(model_name="canopylabs/orpheus-tts-0.1-finetune-prod"):
     # Initialize the Orpheus TTS model according to documentation
     model = OrpheusModel(model_name=model_name)
 
-def generate_speech(prompt, voice, temperature, top_p, repetition_penalty):
+def generate_speech(prompt, voice, temperature, top_p, repetition_penalty, max_tokens):
     if model is None:
         load_model()
     
@@ -24,7 +25,8 @@ def generate_speech(prompt, voice, temperature, top_p, repetition_penalty):
         voice=voice,
         temperature=temperature,
         top_p=top_p,
-        repetition_penalty=repetition_penalty
+        repetition_penalty=repetition_penalty,
+        max_tokens=max_tokens
     )
     
     # Create a unique output filename to avoid overwriting previous generations
@@ -65,7 +67,7 @@ with gr.Blocks(title="OrpheusTTS-WebUI") as demo:
     
 **Available emotive tags:** `<laugh>`, `<chuckle>`, `<sigh>`, `<cough>`, `<sniffle>`, `<groan>`, `<yawn>`, `<gasp>`
     
-**Note:** Increasing repetition_penalty and temperature makes the model speak faster.
+**Note:** Increasing repetition_penalty and temperature makes the model speak faster. Increasing Max Tokens extends the maximum duration of genrated audio.
 </div>
     """)
     
@@ -109,6 +111,13 @@ with gr.Blocks(title="OrpheusTTS-WebUI") as demo:
                     step=0.1,
                     label="Repetition Penalty"
                 )
+                max_tokens = gr.Slider(
+                    minimum=1200,
+                    maximum=3600,
+                    value=1200,
+                    step=100,
+                    label="Max Tokens"
+                )
             
             # Generate button
             submit_btn = gr.Button("Generate Speech")
@@ -135,7 +144,7 @@ with gr.Blocks(title="OrpheusTTS-WebUI") as demo:
     # Connect the generate_speech function to the interface
     submit_btn.click(
         fn=generate_speech,
-        inputs=[prompt, voice, temperature, top_p, rep_penalty],
+        inputs=[prompt, voice, temperature, top_p, rep_penalty, max_tokens],
         outputs=[audio_output, result_text]
     )
 

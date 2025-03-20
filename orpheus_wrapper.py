@@ -10,6 +10,9 @@ import logging
 os.environ["VLLM_MAX_MODEL_LEN"] = "100000"
 os.environ["VLLM_GPU_MEMORY_UTILIZATION"] = "0.9"
 os.environ["VLLM_DISABLE_LOGGING"] = "1"
+os.environ["VLLM_NO_USAGE_STATS"] = "1"
+os.environ["VLLM_DO_NOT_TRACK"] = "1"
+os.environ["GRADIO_ANALYTICS_ENABLED"] = "0"
 
 try:
     # Import the necessary modules
