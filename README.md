@@ -2,6 +2,9 @@
 
 This is a fork of the [Orpheus TTS](https://github.com/canopyai/Orpheus-TTS) project, adding a Gradio WebUI that runs smoothly on WSL and CUDA.
 
+![image](https://github.com/user-attachments/assets/4d4a852b-54b3-4521-aa03-faf5517ec8a6)
+
+
 ## Features
 
 - **Easy-to-use Web Interface**: Simple Gradio UI for text-to-speech generation
@@ -27,8 +30,8 @@ chmod +x setup_orpheus.sh
 
 ## Requirements
 
-- Python 3.8+
-- CUDA-capable GPU (tested on RTX 3090)
+- Python 3.10+
+- CUDA-capable GPU (tested on RTX 3090 / 4090)
 - WSL2 or Linux
 - PyTorch 2.6.0 with CUDA
 - Hugging Face account with access to the Orpheus TTS models
