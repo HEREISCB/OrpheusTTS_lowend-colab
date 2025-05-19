@@ -27,7 +27,7 @@ def get_gpu_settings():
             return dict(max_model_len=50_000, gpu_mem_util=0.90)
         # 1660 (~6 GB)
         else:
-            return dict(max_model_len=20_000, gpu_mem_util=0.80)
+            return dict(max_model_len=12000, gpu_mem_util=0.88)
     except Exception as e:
         logger.warning(f"Could not detect GPU details, falling back to safe defaults: {e}")
         return dict(max_model_len=10_000, gpu_mem_util=0.75)
